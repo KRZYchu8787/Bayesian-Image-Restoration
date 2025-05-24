@@ -424,3 +424,4 @@ cython_debug/
 .idea/
 
 Project9.pdf
+*.png
