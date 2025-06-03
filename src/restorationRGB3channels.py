@@ -255,24 +255,24 @@ if __name__ == '__main__':
 
     n_iters=23
     # simulated annealing for each channel
-    #R_denoised_potts, R_potts_samples = simulated_annealing_with_samples(R_noisy, n_iter=1, sigma=10, beta_init=1.0, cooling=0.97)
+    R_denoised_potts, R_potts_samples = simulated_annealing_potts(R_noisy, n_iter=n_iters, sigma=10, beta_init=1.0, cooling=0.97)
     R_denoised_quadratic, R_quadratic_samples = simulated_annealing_quadratic(R_noisy, n_iter=n_iters, beta_init=1.0, sigma=10, lam=0.3, alpha=0.18, cooling=1.2)
 
-    #G_denoised_potts, G_potts_samples = simulated_annealing_with_samples(G_noisy, n_iter=1, sigma=10, beta_init=1.0, cooling=0.97)
+    G_denoised_potts, G_potts_samples = simulated_annealing_potts(G_noisy, n_iter=n_iters, sigma=10, beta_init=1.0, cooling=0.97)
     G_denoised_quadratic, G_quadratic_samples = simulated_annealing_quadratic(G_noisy, n_iter=n_iters, beta_init=1.0, sigma=10, lam=0.3, alpha=0.18, cooling=1.2)
 
-    #B_denoised_potts, B_potts_samples = simulated_annealing_with_samples(B_noisy, n_iter=1, sigma=10, beta_init=1.0, cooling=0.97)
+    B_denoised_potts, B_potts_samples = simulated_annealing_potts(B_noisy, n_iter=n_iters, sigma=10, beta_init=1.0, cooling=0.97)
     B_denoised_quadratic, B_quadratic_samples = simulated_annealing_quadratic(B_noisy, n_iter=n_iters, beta_init=1.0, sigma=10, lam=0.3, alpha=0.18, cooling=1.2)
 
     # # MAP and MMS estimates for each channel for Potts
-    # R_map_result_potts = map_estimate(R_denoised_potts)
-    # R_mms_result_potts = mms_estimate(R_potts_samples)
+    R_map_result_potts = map_estimate(R_denoised_potts)
+    R_mms_result_potts = mms_estimate(R_potts_samples)
 
-    # G_map_result_potts = map_estimate(G_denoised_potts)
-    # G_mms_result_potts = mms_estimate(G_potts_samples)
+    G_map_result_potts = map_estimate(G_denoised_potts)
+    G_mms_result_potts = mms_estimate(G_potts_samples)
 
-    # B_map_result_potts = map_estimate(B_denoised_potts)
-    # B_mms_result_potts = mms_estimate(B_potts_samples)
+    B_map_result_potts = map_estimate(B_denoised_potts)
+    B_mms_result_potts = mms_estimate(B_potts_samples)
 
     #MAP and MMS estimates for each channel for quadratic
     R_map_result_quadratic = map_estimate(R_denoised_quadratic)
@@ -292,10 +292,10 @@ if __name__ == '__main__':
     # noisy
     noisy_rgb = np.stack([R_noisy, G_noisy, B_noisy], axis=2).astype(np.uint8)
 
-    # # MAP estimate Potts
-    # map_denoised_potts_rgb = np.stack([R_map_result_potts, G_map_result_potts, B_map_result_potts], axis=2).astype(np.uint8)
-    # # MMS estimate Potts
-    # mms_denoised_potts_rgb = np.stack([R_mms_result_potts, G_mms_result_potts, B_mms_result_potts], axis=2).astype(np.uint8)
+    # MAP estimate Potts
+    map_denoised_potts_rgb = np.stack([R_map_result_potts, G_map_result_potts, B_map_result_potts], axis=2).astype(np.uint8)
+    # MMS estimate Potts
+    mms_denoised_potts_rgb = np.stack([R_mms_result_potts, G_mms_result_potts, B_mms_result_potts], axis=2).astype(np.uint8)
 
 
     # MAP estimate quadratic
@@ -315,15 +315,15 @@ if __name__ == '__main__':
     plt.imshow(noisy_rgb)
     plt.axis('off')
 
-    # plt.subplot(1, 6, 3)
-    # plt.title("Potts MAP")
-    # plt.imshow(map_denoised_potts_rgb)
-    # plt.axis('off')
+    plt.subplot(1, 6, 3)
+    plt.title("Potts MAP")
+    plt.imshow(map_denoised_potts_rgb)
+    plt.axis('off')
 
-    # plt.subplot(1, 6, 4)
-    # plt.title("Potts MMS")
-    # plt.imshow(mms_denoised_potts_rgb)
-    # plt.axis('off')
+    plt.subplot(1, 6, 4)
+    plt.title("Potts MMS")
+    plt.imshow(mms_denoised_potts_rgb)
+    plt.axis('off')
 
     plt.subplot(1, 6, 5)
     plt.title("Quadratic MAP")
@@ -337,4 +337,16 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     plt.show()
+
+    # mean squared error
+    mse_noisy= np.mean((original_rgb - noisy_rgb) ** 2)
+    mse_potts_map = np.mean((original_rgb - map_denoised_potts_rgb) ** 2)
+    mse_potts_mms = np.mean((original_rgb - mms_denoised_potts_rgb) ** 2)
+    mse_quadratic_map = np.mean((original_rgb - map_denoised_quadratic_rgb) ** 2)
+    mse_quadratic_mms = np.mean((original_rgb - mms_denoised_quadratic_rgb) ** 2)
+    print(f"MSE Noisy: {mse_noisy:.2f}")
+    print(f"MSE Potts MAP: {mse_potts_map:.2f}")
+    print(f"MSE Potts MMS: {mse_potts_mms:.2f}")
+    print(f"MSE Quadratic MAP: {mse_quadratic_map:.2f}")
+    print(f"MSE Quadratic MMS: {mse_quadratic_mms:.2f}")
 
