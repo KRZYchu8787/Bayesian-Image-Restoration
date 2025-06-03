@@ -75,7 +75,7 @@ def eight_neighbors(i, j, shape):
             if 0 <= ni < shape[0] and 0 <= nj < shape[1]:
                 yield ni, nj
 
-def potts_local_energy(x, y, i, j, val, sigma):
+def potts_local_energy(x, y, i, j, val, sigma, eight_n=False):
     """
     Compute the local energy using the Potts model.
 
@@ -85,14 +85,16 @@ def potts_local_energy(x, y, i, j, val, sigma):
     :param j: int, column index
     :param val: int, proposed pixel value
     :param sigma: float, noise standard deviation
+    :param eight_n: bool, whether to use 8-connected neighbors (default False for 4-connected)
     :return: float, energy value
     """
     point_part = ((y[i, j] - val) ** 2) / (2 * sigma**2) # log of probability Y|X
-    neighbour_part = sum(val != x[ni, nj] for ni, nj in eight_neighbors(i, j, x.shape)) # log of prior probability X
+    neighbour_part = sum(val != x[ni, nj] for ni, nj in (eight_neighbors(i, j, x.shape) if eight_n
+                                                         else four_neighbors(i, j, x.shape))) # log of prior probability X
     neighbour_part /= 100
     return point_part + neighbour_part
 
-def gibbs_sampler_potts(x, y, sigma, beta):
+def gibbs_sampler_potts(x, y, sigma, beta, eight_n=False):
     """
     Perform one Gibbs sampling step for the Potts model.
 
@@ -100,18 +102,19 @@ def gibbs_sampler_potts(x, y, sigma, beta):
     :param y: numpy.ndarray, noisy image
     :param sigma: float, noise standard deviation
     :param beta: float, inverse temperature parameter
+    :param eight_n: bool, whether to use 8-connected neighbors (default False for 4-connected)
     :return: numpy.ndarray, updated image
     """
     for i in range(x.shape[0]):
         for j in range(x.shape[1]):
             vals = np.clip(np.array([x[i, j] - 2, x[i, j], x[i, j] + 2]), 0, 255)
-            probs = [np.exp(-beta * potts_local_energy(x, y, i, j, v, sigma)) for v in vals]
+            probs = [np.exp(-beta * potts_local_energy(x, y, i, j, v, sigma, eight_n=eight_n)) for v in vals]
             probs = np.array(probs)
             probs /= probs.sum()
             x[i, j] = np.random.choice(vals, p=probs)
     return x
 
-def simulated_annealing_potts(y, n_iter, sigma, beta_init, cooling):
+def simulated_annealing_potts(y, n_iter, sigma, beta_init, cooling, eight_n=False):
     """
     Perform simulated annealing with Gibbs sampling (Potts model).
 
@@ -120,6 +123,7 @@ def simulated_annealing_potts(y, n_iter, sigma, beta_init, cooling):
     :param sigma: float, noise standard deviation
     :param beta_init: float, initial inverse temperature
     :param cooling: float, cooling factor per iteration
+    :param eight_n: bool, whether to use 8-connected neighbors (default False for 4-connected)
     :return: tuple (final image, list of collected samples)
     """
     x = y.copy()
@@ -127,13 +131,13 @@ def simulated_annealing_potts(y, n_iter, sigma, beta_init, cooling):
     samples = []
     for t in range(n_iter):
         print(f"Potts iteration {t}")
-        x = gibbs_sampler_potts(x, y, sigma, beta)
+        x = gibbs_sampler_potts(x, y, sigma, beta, eight_n=eight_n)
         beta *= cooling
         if t >= n_iter // 2:
             samples.append(x.copy())
     return x, samples
 
-def quadratic_local_energy(x, y, i, j, val, sigma, lam, alpha):
+def quadratic_local_energy(x, y, i, j, val, sigma, lam, alpha, eight_n=False):
     """
     Compute the local energy using a quadratic prior with edge-preserving regularization.
 
@@ -145,11 +149,12 @@ def quadratic_local_energy(x, y, i, j, val, sigma, lam, alpha):
     :param sigma: float, noise standard deviation
     :param lam: float, regularization weight
     :param alpha: float, truncation threshold to preserve edges
+    :param eight_n: bool, whether to use 8-connected neighbors (default False for 4-connected)
     :return: float, energy value
     """
     point_part = ((y[i, j] - val) ** 2) / (2 * sigma**2) # log of probability Y|X
     neighbour_part = 0 # log of prior probability X
-    for ni, nj in eight_neighbors(i, j, x.shape):
+    for ni, nj in (eight_neighbors(i, j, x.shape) if eight_n else four_neighbors(i, j, x.shape)):
         diff = lam * abs(int(val) - int(x[ni, nj]))
         print(diff**2)
         neighbour_part +=min(max(diff**2, alpha),1) / 10
@@ -158,7 +163,7 @@ def quadratic_local_energy(x, y, i, j, val, sigma, lam, alpha):
     print(neighbour_part, "neighbour")
     return point_part + neighbour_part
 
-def gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha):
+def gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=False):
     """
     Perform one Gibbs sampling step using the quadratic model.
 
@@ -168,19 +173,20 @@ def gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha):
     :param beta: float, inverse temperature
     :param lam: float, regularization weight
     :param alpha: float, edge-preserving threshold
+    :param eight_n: bool, whether to use 8-connected neighbors (default False for 4-connected)
     :return: numpy.ndarray, updated image
     """
     for i in range(x.shape[0]):
         for j in range(x.shape[1]):
             vals = np.clip(np.array([x[i, j] - 2, x[i, j], x[i, j] + 2]), 0, 255)
-            probs = [np.exp(-beta * quadratic_local_energy(x, y, i, j, v, sigma, lam, alpha)) for v in vals]
+            probs = [np.exp(-beta * quadratic_local_energy(x, y, i, j, v, sigma, lam, alpha, eight_n=eight_n)) for v in vals]
             print(probs)
             probs = np.array(probs)
             probs /= probs.sum()
             x[i, j] = np.random.choice(vals, p=probs)
     return x
 
-def simulated_annealing_quadratic(y, n_iter, sigma, beta_init, lam, alpha, cooling):
+def simulated_annealing_quadratic(y, n_iter, sigma, beta_init, lam, alpha, cooling, eight_n=False):
     """
     Perform simulated annealing using the quadratic model.
 
@@ -191,6 +197,7 @@ def simulated_annealing_quadratic(y, n_iter, sigma, beta_init, lam, alpha, cooli
     :param lam: float, regularization weight
     :param alpha: float, edge-preserving threshold
     :param cooling: float, temperature decay per iteration
+    :param eight_n: bool, whether to use 8-connected neighbors (default False for 4-connected)
     :return: tuple (final image, list of samples)
     """
     x = y.copy()
@@ -198,7 +205,7 @@ def simulated_annealing_quadratic(y, n_iter, sigma, beta_init, lam, alpha, cooli
     samples = []
     for t in range(n_iter):
         print(f"Quadratic iteration {t}")
-        x = gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha)
+        x = gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=eight_n)
         beta *= cooling
         if t >= n_iter // 2:
             samples.append(x.copy())
