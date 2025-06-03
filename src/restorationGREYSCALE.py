@@ -26,7 +26,6 @@ def add_noise(img, sigma=10):
     noisy_image = img + np.random.normal(0, sigma, img.shape)
     return np.clip(np.round(noisy_image), 0, 255).astype(np.uint8)
 
-
 def add_noise_only_for_every_n_pixels(img, sigma=10, n=4):
     """
     Add Gaussian noise to every n-th pixel in a grayscale image.
@@ -239,19 +238,19 @@ def mms_estimate(samples):
     return np.mean(samples, axis=0).astype(np.uint8)
 
 if __name__ == '__main__':
-    path = 'iphone.png'  # Replace with your image path
+    path = 'image4.png'  # Replace with your image path
     image = load_grayscale_image(path)
-    # image_noisy = add_noise(image, sigma=3)
-    image_noisy = add_noise_only_for_every_n_pixels(image, sigma=10, n=4)
+    image_noisy = add_noise(image, sigma=10)
+    # image_noisy = add_noise_only_for_every_n_pixels(image, sigma=10, n=2)
 
     denoised_potts, potts_samples = simulated_annealing_potts(
-        image_noisy, n_iter=2, sigma=10, beta_init = 2, cooling=1.2)
+        image_noisy, n_iter=100, sigma=10, beta_init = 0.5, cooling=1.04)
 
     map_result_potts = map_estimate(denoised_potts)
     mms_result_potts = mms_estimate(potts_samples)
 
     denoised_quadratic, quadratic_samples = simulated_annealing_quadratic(
-        image_noisy, n_iter=5, sigma=10, beta_init = 0.5, lam=0.18, alpha=0.08, cooling=1.5)
+        image_noisy, n_iter=20, sigma=10, beta_init = 0.5, lam=0.18, alpha=0.08, cooling=1.1)
 
     map_result_quadratic = map_estimate(denoised_quadratic)
     mms_result_quadratic = mms_estimate(quadratic_samples)
@@ -289,4 +288,14 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     plt.show()
-    
+
+    # print mse between noisy and potts map nad mms
+    mse_potts_map = np.mean((image - map_result_potts) ** 2)
+    mse_potts_mms = np.mean((image - mms_result_potts) ** 2)
+    mse_quadratic_map = np.mean((image - map_result_quadratic) ** 2)
+    mse_quadratic_mms = np.mean((image - mms_result_quadratic) ** 2)
+    print(f"MSE Potts MAP: {mse_potts_map:.2f}",
+          f"MSE Potts MMS: {mse_potts_mms:.2f}",
+          f"MSE Quadratic MAP: {mse_quadratic_map:.2f}",
+          f"MSE Quadratic MMS: {mse_quadratic_mms:.2f}")
+    print("Done")
