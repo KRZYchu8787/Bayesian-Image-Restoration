@@ -162,7 +162,8 @@ def quadratic_local_energy(x, y, i, j, val, sigma, lam, alpha, eight_n=False):
     neighbour_part = 0 # log of prior probability X
     for ni, nj in (eight_neighbors(i, j, x.shape) if eight_n else four_neighbors(i, j, x.shape)):
         diff = lam * abs(int(val) - int(x[ni, nj]))
-        neighbour_part += min(max(diff**2, alpha), 3)
+        neighbour_part += min(max(diff**2, alpha), 20) / 20
+        print(min(max(diff**2, alpha), 20) /100, "neighbour", ni, nj)
     print(point_part, "point")
     print(neighbour_part, "neighbour")
     return point_part + neighbour_part
