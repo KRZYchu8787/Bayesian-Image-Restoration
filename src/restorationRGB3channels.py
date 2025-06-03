@@ -135,9 +135,7 @@ def simulated_annealing_potts(y, n_iter, sigma, beta_init, cooling, eight_n=Fals
     beta = beta_init
     samples = []
     for t in range(n_iter):
-        print(f"Potts iteration {t}")
         x = gibbs_sampler_potts(x, y, sigma, beta, eight_n=eight_n)
-        print(x[4, 4])
         beta *= cooling
         if t >= n_iter // 2:
             samples.append(x.copy())
@@ -163,9 +161,6 @@ def quadratic_local_energy(x, y, i, j, val, sigma, lam, alpha, eight_n=False):
     for ni, nj in (eight_neighbors(i, j, x.shape) if eight_n else four_neighbors(i, j, x.shape)):
         diff = lam * abs(int(val) - int(x[ni, nj]))
         neighbour_part += min(max(diff**2, alpha), 20) / 20
-        print(min(max(diff**2, alpha), 20) /100, "neighbour", ni, nj)
-    print(point_part, "point")
-    print(neighbour_part, "neighbour")
     return point_part + neighbour_part
 
 def gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=False):
@@ -185,7 +180,6 @@ def gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=False):
         for j in range(x.shape[1]):
             vals = np.clip(np.array([x[i, j] - 4, x[i, j] - 3, x[i, j] - 2, x[i, j] - 1, x[i, j], x[i, j] + 1, x[i, j] + 2, x[i, j] + 3, x[i, j] + 4]), 0, 255)
             probs = [np.exp(-beta * quadratic_local_energy(x, y, i, j, v, sigma, lam, alpha, eight_n=eight_n)) for v in vals]
-            print(probs)
             probs = np.array(probs)
             probs /= probs.sum()
             x[i, j] = np.random.choice(vals, p=probs)
@@ -209,7 +203,6 @@ def simulated_annealing_quadratic(y, n_iter, sigma, beta_init, lam, alpha, cooli
     beta = beta_init
     samples = []
     for t in range(n_iter):
-        print(f"Quadratic iteration {t}")
         x = gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=eight_n)
         beta *= cooling
         if t >= n_iter // 2:
@@ -350,3 +343,87 @@ if __name__ == '__main__':
     print(f"MSE Quadratic MAP: {mse_quadratic_map:.2f}")
     print(f"MSE Quadratic MMS: {mse_quadratic_mms:.2f}")
 
+def process_image_quadratic_rgb3channels(path, n_iters=23, sigma=10, beta_init=1.0, lam=0.3, alpha=0.18, cooling=1.2,
+                                         do_not_show=False):
+    """
+    Process an RGB image using the quadratic model for denoising.
+    :param path: str, path to the image file
+    :param n_iters: int, number of iterations for simulated annealing
+    :param sigma: float, noise standard deviation
+    :param beta_init: float, initial inverse temperature
+    :param lam: float, regularization weight
+    :param alpha: float, edge-preserving threshold
+    :param cooling: float, cooling factor per iteration
+    :param do_not_show: bool, if True, do not display the results
+    :return: tuple (map_denoised_quadratic_rgb, mms_denoised_quadratic_rgb, mse_noisy, mse_quadratic_map, mse_quadratic_mms)
+    """
+    image = load_RGB_image(path)
+
+    # Split into channels
+    R = image[:, :, 0]
+    G = image[:, :, 1]
+    B = image[:, :, 2]
+
+    # Add noise to each channel
+    R_noisy = add_noise(R, sigma=sigma)
+    G_noisy = add_noise(G, sigma=sigma)
+    B_noisy = add_noise(B, sigma=sigma)
+
+    # Simulated annealing for each channel
+    R_denoised_quadratic, R_samples = simulated_annealing_quadratic(R_noisy, n_iter=n_iters,
+                                                            beta_init=beta_init, sigma=sigma,
+                                                            lam=lam, alpha=alpha,
+                                                            cooling=cooling)
+
+    G_denoised_quadratic, G_samples = simulated_annealing_quadratic(G_noisy, n_iter=n_iters,
+                                                            beta_init=beta_init, sigma=sigma,
+                                                            lam=lam, alpha=alpha,
+                                                            cooling=cooling)
+
+    B_denoised_quadratic, B_samples = simulated_annealing_quadratic(B_noisy, n_iter=n_iters,
+                                                            beta_init=beta_init, sigma=sigma,
+                                                            lam=lam, alpha=alpha,
+                                                            cooling=cooling)
+
+    # MAP and MMS estimates for each channel
+    R_map_result_quadratic = map_estimate(R_denoised_quadratic)
+    R_mms_result_quadratic = mms_estimate(R_samples)
+    G_map_result_quadratic = map_estimate(G_denoised_quadratic)
+    G_mms_result_quadratic = mms_estimate(G_samples)
+    B_map_result_quadratic = map_estimate(B_denoised_quadratic)
+    B_mms_result_quadratic = mms_estimate(B_samples)
+    # Stack channels back to RGB image
+    original_rgb = np.stack([R, G, B], axis=2).astype(np.uint8)
+    noisy_rgb = np.stack([R_noisy, G_noisy, B_noisy], axis=2).astype(np.uint8)
+    map_denoised_quadratic_rgb = np.stack([R_map_result_quadratic, G_map_result_quadratic, B_map_result_quadratic], axis=2).astype(np.uint8)
+    mms_denoised_quadratic_rgb = np.stack([R_mms_result_quadratic, G_mms_result_quadratic, B_mms_result_quadratic], axis=2).astype(np.uint8)
+    # mean squared error
+    mse_noisy = np.mean((original_rgb - noisy_rgb) ** 2)
+    mse_quadratic_map = np.mean((original_rgb - map_denoised_quadratic_rgb) ** 2)
+    mse_quadratic_mms = np.mean((original_rgb - mms_denoised_quadratic_rgb) ** 2)
+    title_string = (f""
+                    f"MSE Noisy: {mse_noisy:.2f}\n"
+                    f"MSE Quadratic MAP: {mse_quadratic_map:.2f}\n"
+                    f"MSE Quadratic MMS: {mse_quadratic_mms:.2f}")
+    if not do_not_show:
+        plt.figure(figsize=(12, 6))
+        plt.suptitle(title_string, fontsize=16)
+        plt.subplot(1, 4, 1)
+        plt.title("Original")
+        plt.imshow(original_rgb)
+        plt.axis('off')
+        plt.subplot(1, 4, 2)
+        plt.title("Noisy")
+        plt.imshow(noisy_rgb)
+        plt.axis('off')
+        plt.subplot(1, 4, 3)
+        plt.title("Quadratic MAP")
+        plt.imshow(map_denoised_quadratic_rgb)
+        plt.axis('off')
+        plt.subplot(1, 4, 4)
+        plt.title("Quadratic MMS")
+        plt.imshow(mms_denoised_quadratic_rgb)
+        plt.axis('off')
+        plt.tight_layout()
+        plt.show()
+    return map_denoised_quadratic_rgb, mms_denoised_quadratic_rgb, mse_noisy, mse_quadratic_map, mse_quadratic_mms
