@@ -173,9 +173,9 @@ def gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=False):
             proposals = []
 
             # Generate neighborhood proposals around current RGB value
-            for dr in range(-1, 2):
-                for dg in range(-1, 2):
-                    for db in range(-1, 2):
+            for dr in [-3, 0, 3]:
+                for dg in [-3, 0, 3]:
+                    for db in [-3, 0, 3]:
                         rgb = np.clip(current + np.array([dr, dg, db]), 0, 255)
                         proposals.append(rgb)
 
