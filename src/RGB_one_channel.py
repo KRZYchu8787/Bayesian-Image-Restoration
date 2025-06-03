@@ -157,10 +157,7 @@ def quadratic_local_energy(x, y, i, j, val_rgb, sigma, lam, alpha, eight_n=False
     for ni, nj in (eight_neighbors(i, j, x.shape[:2]) if eight_n else four_neighbors(i, j, x.shape[:2])):
         diff_vec = val_rgb - x[ni, nj]
         diff = lam * np.sqrt(np.linalg.norm(diff_vec))
-        print(max(diff**2, alpha), "kk")
         neighbour_part += min(max(diff**2, alpha), 30) / 100
-    print(point_part, "point")
-    print(neighbour_part, "neighbour")
     return point_part + neighbour_part
 
 def gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=False):
@@ -206,7 +203,6 @@ def simulated_annealing_quadratic(y, n_iter, sigma, beta_init, lam, alpha, cooli
     beta = beta_init
     samples = []
     for t in range(n_iter):
-        print(f"Quadratic iteration {t}")
         x = gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=eight_n)
         beta *= cooling
         if t >= n_iter // 2:
@@ -263,7 +259,7 @@ if __name__ == '__main__':
     # mms_result_potts = mms_estimate(potts_samples)
 
     denoised_quadratic, quadratic_samples = simulated_annealing_quadratic(
-        image_noisy, n_iter=1, sigma=10, beta_init = 0.5, lam=0.18, alpha=0.08, cooling=1.1)
+        image_noisy, n_iter=20, sigma=6, beta_init = 0.5, lam=0.18, alpha=0.08, cooling=1.1)
 
     map_result_quadratic = map_estimate(denoised_quadratic)
     mms_result_quadratic = mms_estimate(quadratic_samples)
@@ -307,3 +303,55 @@ if __name__ == '__main__':
     # print(f"MSE Quadratic RGB MAP: {mse_rgb_map:.2f}")
     # print(f"MSE Quadratic RGB MMS: {mse_rgb_mms:.2f}")
     # print("Done")
+
+def process_image_one_rgb(file_path):
+    image = load_RGB_image(file_path)
+    image_noisy = add_noise(image, sigma=10)
+    # image_noisy = add_noise_only_for_every_n_pixels(image, sigma=10, n=2)
+
+    # Rozbicie na kanały
+    R = image[:, :, 0]
+    G = image[:, :, 1]
+    B = image[:, :, 2]
+
+    # work on a small patch for speed
+    R_cropped = R[:64, :64]
+    G_cropped = G[:64, :64]
+    B_cropped = B[:64, :64]
+
+    # add noise for each channel
+    R_noisy = add_noise(R_cropped, sigma=10)
+    G_noisy = add_noise(G_cropped, sigma=10)
+    B_noisy = add_noise(B_cropped, sigma=10)
+
+    noisy_rgb = np.stack([R_noisy, G_noisy, B_noisy], axis=2).astype(np.uint8)
+
+    denoised_quadratic, quadratic_samples = simulated_annealing_quadratic(
+        image_noisy, n_iter=20, sigma=6, beta_init=0.5, lam=0.18, alpha=0.08, cooling=1.1)
+
+    map_result_quadratic = map_estimate(denoised_quadratic)
+    mms_result_quadratic = mms_estimate(quadratic_samples)
+
+    plt.figure(figsize=(14, 6))
+    plt.subplot(1, 4, 1)
+    plt.title("Original")
+    plt.imshow(image)
+    plt.axis('off')
+
+    plt.subplot(1, 4, 2)
+    plt.title("Noisy")
+    plt.imshow(image_noisy)
+    plt.axis('off')
+
+    plt.subplot(1, 4, 3)
+    plt.title("Quadratic MAP")
+    plt.imshow(map_result_quadratic)
+    plt.axis('off')
+
+    plt.subplot(1, 4, 4)
+    plt.title("Quadratic MMS")
+    plt.imshow(mms_result_quadratic)
+    plt.axis('off')
+
+    plt.tight_layout()
+    plt.show()
