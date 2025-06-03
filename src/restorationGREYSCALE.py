@@ -2,18 +2,19 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 
-def load_grayscale_image(path):
+def load_grayscale_image(path, how_clipped=64):
     """
     Load an image from the specified path and convert it to grayscale.
 
     :param path: str, path to the image file
+    :param how_clipped: int, size to which the image will be clipped (width and height)
     :return: numpy.ndarray, grayscale image as a 2D array
     """
     image = Image.open(path)
     if image.mode == 'P':
         image = image.convert('RGBA')
     image = image.convert('L')  # 'L' mode is for (8-bit) grayscale
-    return np.array(image)[:64, :64]
+    return np.array(image)[:how_clipped, :how_clipped]
 
 def add_noise(img, sigma=10):
     """
@@ -167,8 +168,6 @@ def quadratic_local_energy(x, y, i, j, val, sigma, lam, alpha, eight_n=False):
     for ni, nj in (eight_neighbors(i, j, x.shape) if eight_n else four_neighbors(i, j, x.shape)):
         diff = lam * abs(int(val) - int(x[ni, nj]))
         neighbour_part += min(max(diff**2, alpha), 3)
-    print(point_part, "point")
-    print(neighbour_part, "neighbour")
     return point_part + neighbour_part
 
 def gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=False):
@@ -188,7 +187,11 @@ def gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=False):
         for j in range(x.shape[1]):
             vals = np.clip(np.array([x[i, j] - 4, x[i, j] - 3, x[i, j] - 2, x[i, j] - 1, x[i, j], x[i, j] + 1, x[i, j] + 2, x[i, j] + 3, x[i, j] + 4]), 0, 255)
             probs = [np.exp(-beta * quadratic_local_energy(x, y, i, j, v, sigma, lam, alpha, eight_n=eight_n)) for v in vals]
-            print(probs)
+            if all(p == 0 for p in probs):
+                #take with bigger value of quadratic_local_energy
+                energies = [quadratic_local_energy(x, y, i, j, v, sigma, lam, alpha, eight_n=eight_n) for v in vals]
+                min_energy = min(energies)
+                probs = [1.0 if energy == min_energy else 0.0 for energy in energies]
             probs = np.array(probs)
             probs /= probs.sum()
             x[i, j] = np.random.choice(vals, p=probs)
@@ -212,7 +215,6 @@ def simulated_annealing_quadratic(y, n_iter, sigma, beta_init, lam, alpha, cooli
     beta = beta_init
     samples = []
     for t in range(n_iter):
-        print(f"Quadratic iteration {t}")
         x = gibbs_sampler_quadratic(x, y, sigma, beta, lam, alpha, eight_n=eight_n)
         beta *= cooling
         if t >= n_iter // 2:
@@ -238,7 +240,7 @@ def mms_estimate(samples):
     return np.mean(samples, axis=0).astype(np.uint8)
 
 if __name__ == '__main__':
-    path = 'image4.png'  # Replace with your image path
+    path = 'image.png'  # Replace with your image path
     image = load_grayscale_image(path)
     image_noisy = add_noise(image, sigma=10)
     # image_noisy = add_noise_only_for_every_n_pixels(image, sigma=10, n=2)
@@ -251,6 +253,9 @@ if __name__ == '__main__':
 
     denoised_quadratic, quadratic_samples = simulated_annealing_quadratic(
         image_noisy, n_iter=20, sigma=10, beta_init = 0.5, lam=0.18, alpha=0.08, cooling=1.1)
+    # bigger lambda emphasizes edges more, smaller alpha preserves more edges (to test)
+    # alpha influences how much I look at the neighbors, bigger alpha means I look at more neighbors ? (to test)
+    # beta is the inverse temperature, bigger beta means less? exploration (to test)
 
     map_result_quadratic = map_estimate(denoised_quadratic)
     mms_result_quadratic = mms_estimate(quadratic_samples)
@@ -299,3 +304,53 @@ if __name__ == '__main__':
           f"MSE Quadratic MAP: {mse_quadratic_map:.2f}",
           f"MSE Quadratic MMS: {mse_quadratic_mms:.2f}")
     print("Done")
+
+def process_image_quadrantic(image_path, n_iter=20, sigma=10, beta_init=0.5, lam=0.18, alpha=0.08, cooling=1.1,
+                             do_not_show=False, how_clipped=64):
+    """
+    Process an image using the quadratic model for denoising.
+
+    :param image_path: str, path to the input image
+    :param n_iter: int, number of iterations for simulated annealing
+    :param sigma: float, noise standard deviation
+    :param beta_init: float, initial inverse temperature
+    :param lam: float, regularization weight
+    :param alpha: float, edge-preserving threshold
+    :param cooling: float, cooling factor per iteration
+    :param do_not_show: bool, if True, do not display the images
+    :param how_clipped: int, size to which the image will be clipped (width and height)
+    :return: tuple (MAP estimate, MMS estimate, MSE MAP, MSE MMS)
+    """
+    image_gray = load_grayscale_image(image_path, how_clipped=how_clipped)
+    image_gray_noisy = add_noise(image_gray, sigma=sigma)
+    denoised_image, samples = simulated_annealing_quadratic(
+        image_gray_noisy, n_iter=n_iter, sigma=sigma,
+        beta_init=beta_init, lam=lam, alpha=alpha, cooling=cooling)
+    map_result = map_estimate(denoised_image)
+    mms_result = mms_estimate(samples)
+    mse_map = np.mean((image_gray - map_result) ** 2)
+    mse_mms = np.mean((image_gray - mms_result) ** 2)
+    mse_noisy = np.mean((image_gray - image_gray_noisy) ** 2)
+    if not do_not_show:
+        title_string = f"MSE NOISY: {mse_noisy:.2f}, MSE MAP: {mse_map:.2f}, MSE MMS: {mse_mms:.2f}"
+        plt.figure(figsize=(12, 2))
+        plt.suptitle(title_string)
+        plt.subplot(1, 4, 1)
+        plt.title("Original")
+        plt.imshow(image_gray, cmap='gray')
+        plt.axis('off')
+        plt.subplot(1, 4, 2)
+        plt.title("Noisy")
+        plt.imshow(image_gray_noisy, cmap='gray')
+        plt.axis('off')
+        plt.subplot(1, 4, 3)
+        plt.title("MAP Result")
+        plt.imshow(map_result, cmap='gray')
+        plt.axis('off')
+        plt.subplot(1, 4, 4)
+        plt.title("MMS Result")
+        plt.imshow(mms_result, cmap='gray')
+        plt.axis('off')
+        plt.tight_layout()
+        plt.show()
+    return map_result, mms_result, mse_map, mse_mms
