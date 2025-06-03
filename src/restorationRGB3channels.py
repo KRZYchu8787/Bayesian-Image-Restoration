@@ -162,7 +162,8 @@ def quadratic_local_energy(x, y, i, j, val, sigma, lam, alpha, eight_n=False):
     neighbour_part = 0 # log of prior probability X
     for ni, nj in (eight_neighbors(i, j, x.shape) if eight_n else four_neighbors(i, j, x.shape)):
         diff = lam * abs(int(val) - int(x[ni, nj]))
-        neighbour_part += min(max(diff**2, alpha), 3)
+        neighbour_part += min(max(diff**2, alpha), 20) / 20
+        print(min(max(diff**2, alpha), 20) /100, "neighbour", ni, nj)
     print(point_part, "point")
     print(neighbour_part, "neighbour")
     return point_part + neighbour_part
@@ -254,13 +255,13 @@ if __name__ == '__main__':
 
     # simulated annealing for each channel
     #R_denoised_potts, R_potts_samples = simulated_annealing_with_samples(R_noisy, n_iter=1, sigma=10, beta_init=1.0, cooling=0.97)
-    R_denoised_quadratic, R_quadratic_samples = simulated_annealing_quadratic(R_noisy, n_iter=5, beta_init=1.0, sigma=10, lam=0.3, alpha=0.18, cooling=1.2)
+    R_denoised_quadratic, R_quadratic_samples = simulated_annealing_quadratic(R_noisy, n_iter=2, beta_init=1.0, sigma=10, lam=0.3, alpha=0.18, cooling=1.2)
 
     #G_denoised_potts, G_potts_samples = simulated_annealing_with_samples(G_noisy, n_iter=1, sigma=10, beta_init=1.0, cooling=0.97)
-    G_denoised_quadratic, G_quadratic_samples = simulated_annealing_quadratic(G_noisy, n_iter=5, beta_init=1.0, sigma=10, lam=0.3, alpha=0.18, cooling=1.2)
+    G_denoised_quadratic, G_quadratic_samples = simulated_annealing_quadratic(G_noisy, n_iter=1, beta_init=1.0, sigma=10, lam=0.3, alpha=0.18, cooling=1.2)
 
     #B_denoised_potts, B_potts_samples = simulated_annealing_with_samples(B_noisy, n_iter=1, sigma=10, beta_init=1.0, cooling=0.97)
-    B_denoised_quadratic, B_quadratic_samples = simulated_annealing_quadratic(B_noisy, n_iter=5, beta_init=1.0, sigma=10, lam=0.3, alpha=0.18, cooling=1.2)
+    B_denoised_quadratic, B_quadratic_samples = simulated_annealing_quadratic(B_noisy, n_iter=1, beta_init=1.0, sigma=10, lam=0.3, alpha=0.18, cooling=1.2)
 
     # # MAP and MMS estimates for each channel for Potts
     # R_map_result_potts = map_estimate(R_denoised_potts)
