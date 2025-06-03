@@ -344,7 +344,7 @@ if __name__ == '__main__':
     print(f"MSE Quadratic MMS: {mse_quadratic_mms:.2f}")
 
 def process_image_quadratic_rgb3channels(path, n_iters=23, sigma=10, beta_init=1.0, lam=0.3, alpha=0.18, cooling=1.2,
-                                         do_not_show=False):
+                                         do_not_show=False, how_clipped=None):
     """
     Process an RGB image using the quadratic model for denoising.
     :param path: str, path to the image file
@@ -355,6 +355,7 @@ def process_image_quadratic_rgb3channels(path, n_iters=23, sigma=10, beta_init=1
     :param alpha: float, edge-preserving threshold
     :param cooling: float, cooling factor per iteration
     :param do_not_show: bool, if True, do not display the results
+    :param how_clipped: int, if not None, clip the image to a square of size (how_clipped, how_clipped)
     :return: tuple (map_denoised_quadratic_rgb, mms_denoised_quadratic_rgb, mse_noisy, mse_quadratic_map, mse_quadratic_mms)
     """
     image = load_RGB_image(path)
@@ -363,6 +364,10 @@ def process_image_quadratic_rgb3channels(path, n_iters=23, sigma=10, beta_init=1
     R = image[:, :, 0]
     G = image[:, :, 1]
     B = image[:, :, 2]
+    if how_clipped is not None:
+        R = R[:how_clipped, :how_clipped]
+        G = G[:how_clipped, :how_clipped]
+        B = B[:how_clipped, :how_clipped]
 
     # Add noise to each channel
     R_noisy = add_noise(R, sigma=sigma)
