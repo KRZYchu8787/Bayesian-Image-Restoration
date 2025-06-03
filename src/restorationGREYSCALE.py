@@ -282,3 +282,13 @@ if __name__ == '__main__':
     plt.show()
     
     print("Fef")
+    # print mse between noisy and potts map nad mms
+    mse_potts_map = np.mean((image - map_result_potts) ** 2)
+    mse_potts_mms = np.mean((image - mms_result_potts) ** 2)
+    mse_quadratic_map = np.mean((image - map_result_quadratic) ** 2)
+    mse_quadratic_mms = np.mean((image - mms_result_quadratic) ** 2)
+    print(f"MSE Potts MAP: {mse_potts_map:.2f}",
+          f"MSE Potts MMS: {mse_potts_mms:.2f}",
+          f"MSE Quadratic MAP: {mse_quadratic_map:.2f}",
+          f"MSE Quadratic MMS: {mse_quadratic_mms:.2f}")
+    print("Done")
